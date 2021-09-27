@@ -135,8 +135,8 @@ func main() {
 
 	for {
 		log.Printf("reading a shard of %s", sr.Reader().ShardID())
-		records, err := sr.ReadRecords()
 
+		records, err := sr.ReadRecords()
 		if err != nil {
 			log.Fatal(err)
 		}

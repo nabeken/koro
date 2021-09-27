@@ -1,11 +1,18 @@
 package koro
 
 import (
+	"errors"
 	"fmt"
+	"log"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 )
+
+// ErrNoAvailShards will be returned when there are no available shards.
+// When a reader reads a last record in a last shard in a disabled stream, it will be returned.
+var ErrNoAvailShards = errors.New("koro: no available shards to read")
 
 type StreamReader struct {
 	client *client
@@ -13,9 +20,10 @@ type StreamReader struct {
 	arn *string
 	srs *ShardReaderService
 
-	readers []*ShardReader
-
-	por int
+	mu          sync.Mutex
+	readers     []*ShardReader
+	por         int
+	lastShardId string
 }
 
 func NewStreamByName(dsr DynamoDBStreamer, tn string) (*StreamReader, error) {
@@ -41,7 +49,7 @@ func newStreamReader(client *client, arn *string) (*StreamReader, error) {
 	}
 
 	if err := sr.init(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("initializing the reader: %w", err)
 	}
 
 	return sr, nil
@@ -63,29 +71,80 @@ func (sr *StreamReader) init() error {
 	return nil
 }
 
-// Reader returns a shard reader that is currently read.
-func (sr *StreamReader) Reader() *ShardReader {
+// reader returns a shard reader that is currently read. A caller must hold the lock.
+func (sr *StreamReader) reader() *ShardReader {
 	return sr.readers[sr.por]
 }
 
-func (sr *StreamReader) moveToNextReader() {
+// Reader returns a shard reader that is currently read.
+func (sr *StreamReader) Reader() *ShardReader {
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+
+	return sr.reader()
+}
+
+func (sr *StreamReader) moveToNextReader() error {
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+
+	sr.lastShardId = sr.reader().ShardID()
+
 	sr.por++
-	if sr.por > len(sr.readers) {
-		// TODO: need to refresh readers to get new open shard
-		sr.por = 0
-		panic("FIXME")
+	// DEBUG:
+	log.Printf("por: %d / len: %d", sr.por, len(sr.readers))
+
+	if sr.por < len(sr.readers) {
+		return nil
 	}
+
+	// seems like the reader reaches the end of shards we know
+	// let's refresh shards information
+	if err := sr.init(); err != nil {
+		return fmt.Errorf("refreshing the reader: %w", err)
+	}
+
+	sr.shrinkReaders()
+	if len(sr.readers) == 0 {
+		return ErrNoAvailShards
+	}
+
+	// move to the latest shard
+	sr.por = 0
+
+	return nil
+}
+
+// shrinkReaders shrinks readers as to the lastShardId.
+func (sr *StreamReader) shrinkReaders() {
+	var pos int
+	for i := range sr.readers {
+		if sr.lastShardId == sr.readers[i].ShardID() {
+			pos = i
+			break
+		}
+	}
+
+	if pos+1 == len(sr.readers) {
+		sr.readers = nil
+		return
+	}
+
+	sr.readers = sr.readers[pos+1:]
 }
 
 func (sr *StreamReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
 	for {
 		r := sr.Reader()
+
 		if r.Next() {
 			return r.ReadRecords()
 		}
 
 		// move on the next shard
-		sr.moveToNextReader()
+		if err := sr.moveToNextReader(); err != nil {
+			return nil, err
+		}
 	}
 }
 
