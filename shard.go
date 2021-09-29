@@ -1,3 +1,4 @@
+//go:generate mockgen -source=$GOFILE -destination=mock_$GOFILE -package=$GOPACKAGE
 package koro
 
 import (
@@ -111,6 +112,7 @@ func (r *ShardReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
 func (r *ShardReader) Seek(rc *dynamodbstreams.Record) {
 	r.rpos = rc.Dynamodb.SequenceNumber
 	r.eos = false
+	r.itr = nil
 }
 
 func (r *ShardReader) getShardIterator() (*string, error) {
