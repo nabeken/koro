@@ -10,6 +10,53 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	records1 = []*dynamodbstreams.Record{
+		{
+			EventID: aws.String("event-1"),
+			Dynamodb: &dynamodbstreams.StreamRecord{
+				SequenceNumber: aws.String("0000"),
+			},
+		},
+		{
+			EventID: aws.String("event-2"),
+			Dynamodb: &dynamodbstreams.StreamRecord{
+				SequenceNumber: aws.String("0001"),
+			},
+		},
+	}
+
+	records2 = []*dynamodbstreams.Record{
+		{
+			EventID: aws.String("event-3"),
+			Dynamodb: &dynamodbstreams.StreamRecord{
+				SequenceNumber: aws.String("0002"),
+			},
+		},
+		{
+			EventID: aws.String("event-4"),
+			Dynamodb: &dynamodbstreams.StreamRecord{
+				SequenceNumber: aws.String("0003"),
+			},
+		},
+	}
+
+	records3 = []*dynamodbstreams.Record{
+		{
+			EventID: aws.String("event-5"),
+			Dynamodb: &dynamodbstreams.StreamRecord{
+				SequenceNumber: aws.String("0004"),
+			},
+		},
+		{
+			EventID: aws.String("event-6"),
+			Dynamodb: &dynamodbstreams.StreamRecord{
+				SequenceNumber: aws.String("0005"),
+			},
+		},
+	}
+)
+
 func TestSortShard(t *testing.T) {
 	assert := assert.New(t)
 
@@ -67,35 +114,6 @@ func TestShardReader(t *testing.T) {
 			EndingSequenceNumber:   aws.String("0003"),
 		},
 		ShardId: aws.String("shard-1"),
-	}
-
-	records1 := []*dynamodbstreams.Record{
-		{
-			EventID: aws.String("event-1"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
-				SequenceNumber: aws.String("0000"),
-			},
-		},
-		{
-			EventID: aws.String("event-2"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
-				SequenceNumber: aws.String("0001"),
-			},
-		},
-	}
-	records2 := []*dynamodbstreams.Record{
-		{
-			EventID: aws.String("event-3"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
-				SequenceNumber: aws.String("0002"),
-			},
-		},
-		{
-			EventID: aws.String("event-4"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
-				SequenceNumber: aws.String("0003"),
-			},
-		},
 	}
 
 	sr := srs.NewReader(shard)

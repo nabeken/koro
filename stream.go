@@ -3,7 +3,6 @@ package koro
 import (
 	"errors"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -91,9 +90,6 @@ func (sr *StreamReader) moveToNextReader() error {
 	sr.lastShardId = sr.reader().ShardID()
 
 	sr.por++
-	// DEBUG:
-	log.Printf("por: %d / len: %d", sr.por, len(sr.readers))
-
 	if sr.por < len(sr.readers) {
 		return nil
 	}
@@ -146,6 +142,11 @@ func (sr *StreamReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
 			return nil, err
 		}
 	}
+}
+
+// Seek advances the iterator in the current shard. See ShardReader.Seek.
+func (sr *StreamReader) Seek(rc *dynamodbstreams.Record) {
+	sr.Reader().Seek(rc)
 }
 
 type client struct {
