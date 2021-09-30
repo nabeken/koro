@@ -60,6 +60,11 @@ func (sr *StreamReader) init() error {
 		return err
 	}
 
+	// this guard ensures that len(shards) never be 0
+	if len(shards) == 0 {
+		return ErrNoAvailShards
+	}
+
 	var readers []*ShardReader
 	for _, s := range shards {
 		readers = append(readers, sr.srs.NewReader(s))
@@ -100,35 +105,30 @@ func (sr *StreamReader) moveToNextReader() error {
 		return fmt.Errorf("refreshing the reader: %w", err)
 	}
 
-	sr.shrinkReaders()
-	if len(sr.readers) == 0 {
+	sr.seekReader()
+
+	// if the last shard is a shard we have read, there are no new open shard. Probably, the stream has been disabled.
+	if sr.por+1 == len(sr.readers) {
 		return ErrNoAvailShards
 	}
 
-	// move to the latest shard
-	sr.por = 0
+	// there are new shards for reading
+	sr.por++
 
 	return nil
 }
 
-// shrinkReaders shrinks readers as to the lastShardId.
-func (sr *StreamReader) shrinkReaders() {
-	var pos int
+// seekReader advances the current reader of the lastShardId.
+func (sr *StreamReader) seekReader() {
 	for i := range sr.readers {
 		if sr.lastShardId == sr.readers[i].ShardID() {
-			pos = i
+			sr.por = i
 			break
 		}
 	}
-
-	if pos+1 == len(sr.readers) {
-		sr.readers = nil
-		return
-	}
-
-	sr.readers = sr.readers[pos+1:]
 }
 
+// ReadRecords reads the current shard. It will only move to the next shard if the current shard reader reaches the end of shard.
 func (sr *StreamReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
 	for {
 		r := sr.Reader()
