@@ -243,13 +243,13 @@ func TestDynamoDBStreams(t *testing.T) {
 
 	streams := dynamodbstreams.New(sess)
 
-	sr, err := NewStreamByName(streams, testTableName)
+	str, err := NewStreamByName(streams, testTableName)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log("Reading the shard...")
-	actual1, err1 := readAll(sr)
+	actual1, err1 := readAll(str)
 	if err1 != nil {
 		t.Fatal(err1)
 	}
@@ -257,10 +257,10 @@ func TestDynamoDBStreams(t *testing.T) {
 
 	// seek to the beginning
 	t.Log("Seeking to the beginning...")
-	sr.Seek(actual1[0])
+	str.Seek(actual1[0])
 
 	t.Log("Reading the shard again from the beginning...")
-	actual2, err2 := readAll(sr)
+	actual2, err2 := readAll(str)
 	if err != nil {
 		t.Fatal(err2)
 	}
