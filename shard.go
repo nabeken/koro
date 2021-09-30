@@ -1,4 +1,3 @@
-//go:generate mockgen -source=$GOFILE -destination=mock_$GOFILE -package=$GOPACKAGE
 package koro
 
 import (
@@ -14,18 +13,13 @@ var (
 	ErrEndOfShard = errors.New("koro: End of Shard")
 )
 
-type DynamoDBStreamer interface {
-	GetRecords(*dynamodbstreams.GetRecordsInput) (*dynamodbstreams.GetRecordsOutput, error)
-	GetShardIterator(*dynamodbstreams.GetShardIteratorInput) (*dynamodbstreams.GetShardIteratorOutput, error)
-	ListStreams(*dynamodbstreams.ListStreamsInput) (*dynamodbstreams.ListStreamsOutput, error)
-	DescribeStream(*dynamodbstreams.DescribeStreamInput) (*dynamodbstreams.DescribeStreamOutput, error)
-}
-
+// ShardReaderService is a factory service that creates a new *ShardReader from *dynamodbstreams.Shard.
 type ShardReaderService struct {
 	arn    *string
 	client DynamoDBStreamer
 }
 
+// NewShardReaderService creates a *ShardReaderService.
 func NewShardReaderService(arn *string, client DynamoDBStreamer) *ShardReaderService {
 	return &ShardReaderService{
 		arn:    arn,
@@ -33,6 +27,7 @@ func NewShardReaderService(arn *string, client DynamoDBStreamer) *ShardReaderSer
 	}
 }
 
+// NewReader creates a *ShardReader by *dynamodbstreams.Shard.
 func (srs *ShardReaderService) NewReader(shard *dynamodbstreams.Shard) *ShardReader {
 	return &ShardReader{
 		client:    srs.client,
@@ -41,6 +36,7 @@ func (srs *ShardReaderService) NewReader(shard *dynamodbstreams.Shard) *ShardRea
 	}
 }
 
+// ShardReader provides a reader interface for *dynamodbstreams.Shard.
 type ShardReader struct {
 	client    DynamoDBStreamer
 	streamArn *string
@@ -67,6 +63,7 @@ func IsShardNotFoundError(origErr error) bool {
 	return awsErr.Code() == dynamodbstreams.ErrCodeResourceNotFoundException
 }
 
+// Next returns true if the reader doesn't reach the end of shard.
 func (r *ShardReader) Next() bool {
 	return !r.eos
 }
@@ -75,6 +72,7 @@ func (r *ShardReader) ShardID() string {
 	return *r.shard.ShardId
 }
 
+// ReadRecords reads records from the shard. It will automatically update the shard iterator for you.
 func (r *ShardReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
 	if r.eos {
 		return nil, ErrEndOfShard
@@ -146,6 +144,7 @@ func (r *ShardReader) buildShardIteratorRequest() *dynamodbstreams.GetShardItera
 	}
 }
 
+// SortShards sorts shards from a parent-to-child.
 func SortShards(shards []*dynamodbstreams.Shard) []*dynamodbstreams.Shard {
 	newShards := make([]*dynamodbstreams.Shard, 0, len(shards))
 

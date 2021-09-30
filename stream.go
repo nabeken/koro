@@ -1,3 +1,4 @@
+//go:generate mockgen -source=$GOFILE -destination=mock_$GOFILE -package=$GOPACKAGE
 package koro
 
 import (
@@ -9,10 +10,19 @@ import (
 	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
 )
 
-// ErrNoAvailShards will be returned when there are no available shards.
-// When a reader reads a last record in a last shard in a disabled stream, it will be returned.
+// DynamoDBStreamer is a subset of DynamoDB Streams API interface.
+type DynamoDBStreamer interface {
+	GetRecords(*dynamodbstreams.GetRecordsInput) (*dynamodbstreams.GetRecordsOutput, error)
+	GetShardIterator(*dynamodbstreams.GetShardIteratorInput) (*dynamodbstreams.GetShardIteratorOutput, error)
+	ListStreams(*dynamodbstreams.ListStreamsInput) (*dynamodbstreams.ListStreamsOutput, error)
+	DescribeStream(*dynamodbstreams.DescribeStreamInput) (*dynamodbstreams.DescribeStreamOutput, error)
+}
+
+// ErrNoAvailShards will be returned when there are no available shards for reading.
+// When the reader reads a last record in a last shard in a disabled stream, it will be returned.
 var ErrNoAvailShards = errors.New("koro: no available shards to read")
 
+// StreamReader reads shards in serial order. It does maintain a checkpoint in-memory.
 type StreamReader struct {
 	client *client
 
@@ -25,6 +35,7 @@ type StreamReader struct {
 	lastShardId string
 }
 
+// NewStreamByName creates a *StreamReader by a given table name.
 func NewStreamByName(dsr DynamoDBStreamer, tn string) (*StreamReader, error) {
 	client := &client{client: dsr}
 
@@ -36,6 +47,7 @@ func NewStreamByName(dsr DynamoDBStreamer, tn string) (*StreamReader, error) {
 	return newStreamReader(client, arn)
 }
 
+// NewStreamByName creates a *StreamReader by a stream ARN.
 func NewStreamReader(dsr DynamoDBStreamer, arn *string) (*StreamReader, error) {
 	return newStreamReader(&client{client: dsr}, arn)
 }
@@ -145,6 +157,7 @@ func (sr *StreamReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
 }
 
 // Seek advances the iterator in the current shard. See ShardReader.Seek.
+// This should be called right after ReadRecords() if you want to restart from the same shard.
 func (sr *StreamReader) Seek(rc *dynamodbstreams.Record) {
 	sr.Reader().Seek(rc)
 }
