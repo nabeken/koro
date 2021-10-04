@@ -113,6 +113,13 @@ func (r *ShardReader) Seek(rc *dynamodbstreams.Record) {
 	r.itr = nil
 }
 
+// Reset resets the internal state in order to read the shard from the beginning.
+func (r *ShardReader) Reset() {
+	r.rpos = nil
+	r.eos = false
+	r.itr = nil
+}
+
 func (r *ShardReader) getShardIterator() (*string, error) {
 	if r.itr == nil {
 		resp, err := r.client.GetShardIterator(r.buildShardIteratorRequest())
