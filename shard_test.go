@@ -58,45 +58,97 @@ var (
 )
 
 func TestSortShard(t *testing.T) {
-	assert := assert.New(t)
+	tcs := []struct {
+		Description string
+		Given       []*dynamodbstreams.Shard
+		Expected    []*dynamodbstreams.Shard
+	}{
+		{
+			Description: "With Root",
+			Given: []*dynamodbstreams.Shard{
+				{
+					ShardId: aws.String("root"),
+				},
+				{
+					ParentShardId: aws.String("leaf-1"),
+					ShardId:       aws.String("leaf-2"),
+				},
+				{
+					ParentShardId: aws.String("root"),
+					ShardId:       aws.String("leaf-1"),
+				},
+				{
+					ParentShardId: aws.String("leaf-2"),
+					ShardId:       aws.String("leaf-3"),
+				},
+			},
 
-	given := []*dynamodbstreams.Shard{
-		{
-			ShardId: aws.String("root"),
+			Expected: []*dynamodbstreams.Shard{
+				{
+					ShardId: aws.String("root"),
+				},
+				{
+					ParentShardId: aws.String("root"),
+					ShardId:       aws.String("leaf-1"),
+				},
+				{
+					ParentShardId: aws.String("leaf-1"),
+					ShardId:       aws.String("leaf-2"),
+				},
+				{
+					ParentShardId: aws.String("leaf-2"),
+					ShardId:       aws.String("leaf-3"),
+				},
+			},
 		},
 		{
-			ParentShardId: aws.String("leaf-1"),
-			ShardId:       aws.String("leaf-2"),
-		},
-		{
-			ParentShardId: aws.String("root"),
-			ShardId:       aws.String("leaf-1"),
-		},
-		{
-			ParentShardId: aws.String("leaf-2"),
-			ShardId:       aws.String("leaf-3"),
+			Description: "Without Root",
+			Given: []*dynamodbstreams.Shard{
+				{
+					ParentShardId: aws.String("root-but-no-longer-exists"),
+					ShardId:       aws.String("top"),
+				},
+				{
+					ParentShardId: aws.String("leaf-1"),
+					ShardId:       aws.String("leaf-2"),
+				},
+				{
+					ParentShardId: aws.String("top"),
+					ShardId:       aws.String("leaf-1"),
+				},
+				{
+					ParentShardId: aws.String("leaf-2"),
+					ShardId:       aws.String("leaf-3"),
+				},
+			},
+
+			Expected: []*dynamodbstreams.Shard{
+				{
+					ParentShardId: aws.String("root-but-no-longer-exists"),
+					ShardId:       aws.String("top"),
+				},
+				{
+					ParentShardId: aws.String("top"),
+					ShardId:       aws.String("leaf-1"),
+				},
+				{
+					ParentShardId: aws.String("leaf-1"),
+					ShardId:       aws.String("leaf-2"),
+				},
+				{
+					ParentShardId: aws.String("leaf-2"),
+					ShardId:       aws.String("leaf-3"),
+				},
+			},
 		},
 	}
 
-	expected := []*dynamodbstreams.Shard{
-		{
-			ShardId: aws.String("root"),
-		},
-		{
-			ParentShardId: aws.String("root"),
-			ShardId:       aws.String("leaf-1"),
-		},
-		{
-			ParentShardId: aws.String("leaf-1"),
-			ShardId:       aws.String("leaf-2"),
-		},
-		{
-			ParentShardId: aws.String("leaf-2"),
-			ShardId:       aws.String("leaf-3"),
-		},
+	for _, tc := range tcs {
+		t.Run(tc.Description, func(t *testing.T) {
+			assert := assert.New(t)
+			assert.Equal(tc.Expected, SortShards(tc.Given))
+		})
 	}
-
-	assert.Equal(expected, SortShards(given))
 }
 
 func TestShardReader(t *testing.T) {

@@ -156,8 +156,8 @@ func SortShards(shards []*dynamodbstreams.Shard) []*dynamodbstreams.Shard {
 	newShards := make([]*dynamodbstreams.Shard, 0, len(shards))
 
 	var prev string
-	for _, s := range shards {
-		if s.ParentShardId == nil { // root shard
+	for i, s := range shards {
+		if s.ParentShardId == nil || i == 0 { // root or first shard
 			newShards = append(newShards, s)
 			prev = *s.ShardId
 			continue
