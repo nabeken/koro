@@ -101,6 +101,46 @@ func TestSortShard(t *testing.T) {
 				},
 			},
 		},
+		{
+			Description: "Without Root",
+			Given: []*dynamodbstreams.Shard{
+				{
+					ParentShardId: aws.String("root-but-no-longer-exists"),
+					ShardId:       aws.String("top"),
+				},
+				{
+					ParentShardId: aws.String("leaf-1"),
+					ShardId:       aws.String("leaf-2"),
+				},
+				{
+					ParentShardId: aws.String("top"),
+					ShardId:       aws.String("leaf-1"),
+				},
+				{
+					ParentShardId: aws.String("leaf-2"),
+					ShardId:       aws.String("leaf-3"),
+				},
+			},
+
+			Expected: []*dynamodbstreams.Shard{
+				{
+					ParentShardId: aws.String("root-but-no-longer-exists"),
+					ShardId:       aws.String("top"),
+				},
+				{
+					ParentShardId: aws.String("top"),
+					ShardId:       aws.String("leaf-1"),
+				},
+				{
+					ParentShardId: aws.String("leaf-1"),
+					ShardId:       aws.String("leaf-2"),
+				},
+				{
+					ParentShardId: aws.String("leaf-2"),
+					ShardId:       aws.String("leaf-3"),
+				},
+			},
+		},
 	}
 
 	for _, tc := range tcs {
