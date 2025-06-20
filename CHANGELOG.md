@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.1](https://github.com/nabeken/koro/compare/v2.0.0...v2.0.1) (2025-06-20)
+
+
+### Bug Fixes
+
+* **deps:** update dependency go to v1.24.4 ([#16](https://github.com/nabeken/koro/issues/16)) ([1e8ae8f](https://github.com/nabeken/koro/commit/1e8ae8fbc72e33961979f738e89caa1bb9794aa5))
+
 ## [2.0.0](https://github.com/nabeken/koro/compare/v1.0.0...v2.0.0) (2025-06-20)
 
 
