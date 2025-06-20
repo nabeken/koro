@@ -245,12 +245,18 @@ func TestDynamoDBStreams(t *testing.T) {
 		for i := 0; ; i++ {
 			t.Log("Writing items...")
 			if err := tc.WriteTestItemNTimes(nItems); err != nil {
-				t.Log(err)
+				var notFoundErr *ddbtypes.ResourceNotFoundException
+
+				// The goroutine keeps writing items so ResourceNotFoundException error can be ignored
+				if !errors.As(err, &notFoundErr) {
+					panic(err)
+				}
+
 				return
 			}
 			t.Logf("%d items wrote", nItems)
 			if i == 0 {
-				tc.DisableStream(ctx)
+				_ = tc.DisableStream(ctx)
 			}
 		}
 	}()
@@ -408,7 +414,7 @@ func (tc *TestClient) WriteTestItemNTimes(ntimes int) error {
 			TableName: aws.String(testTableName),
 		})
 		if err != nil {
-			return fmt.Errorf("putting an item: %w", err)
+			return fmt.Errorf("putting an item (%s): %w", testID, err)
 		}
 	}
 	return nil
