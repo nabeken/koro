@@ -1,56 +1,58 @@
 package koro
 
 import (
+	context "context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
-	gomock "github.com/golang/mock/gomock"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 var (
-	records1 = []*dynamodbstreams.Record{
+	records1 = []types.Record{
 		{
 			EventID: aws.String("event-1"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
+			Dynamodb: &types.StreamRecord{
 				SequenceNumber: aws.String("0000"),
 			},
 		},
 		{
 			EventID: aws.String("event-2"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
+			Dynamodb: &types.StreamRecord{
 				SequenceNumber: aws.String("0001"),
 			},
 		},
 	}
 
-	records2 = []*dynamodbstreams.Record{
+	records2 = []types.Record{
 		{
 			EventID: aws.String("event-3"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
+			Dynamodb: &types.StreamRecord{
 				SequenceNumber: aws.String("0002"),
 			},
 		},
 		{
 			EventID: aws.String("event-4"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
+			Dynamodb: &types.StreamRecord{
 				SequenceNumber: aws.String("0003"),
 			},
 		},
 	}
 
-	records3 = []*dynamodbstreams.Record{
+	records3 = []types.Record{
 		{
 			EventID: aws.String("event-5"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
+			Dynamodb: &types.StreamRecord{
 				SequenceNumber: aws.String("0004"),
 			},
 		},
 		{
 			EventID: aws.String("event-6"),
-			Dynamodb: &dynamodbstreams.StreamRecord{
+			Dynamodb: &types.StreamRecord{
 				SequenceNumber: aws.String("0005"),
 			},
 		},
@@ -60,12 +62,12 @@ var (
 func TestSortShard(t *testing.T) {
 	tcs := []struct {
 		Description string
-		Given       []*dynamodbstreams.Shard
-		Expected    []*dynamodbstreams.Shard
+		Given       []types.Shard
+		Expected    []types.Shard
 	}{
 		{
 			Description: "With Root",
-			Given: []*dynamodbstreams.Shard{
+			Given: []types.Shard{
 				{
 					ShardId: aws.String("root"),
 				},
@@ -83,7 +85,7 @@ func TestSortShard(t *testing.T) {
 				},
 			},
 
-			Expected: []*dynamodbstreams.Shard{
+			Expected: []types.Shard{
 				{
 					ShardId: aws.String("root"),
 				},
@@ -103,7 +105,7 @@ func TestSortShard(t *testing.T) {
 		},
 		{
 			Description: "Without Root",
-			Given: []*dynamodbstreams.Shard{
+			Given: []types.Shard{
 				{
 					ParentShardId: aws.String("root-but-no-longer-exists"),
 					ShardId:       aws.String("top"),
@@ -122,7 +124,7 @@ func TestSortShard(t *testing.T) {
 				},
 			},
 
-			Expected: []*dynamodbstreams.Shard{
+			Expected: []types.Shard{
 				{
 					ParentShardId: aws.String("root-but-no-longer-exists"),
 					ShardId:       aws.String("top"),
@@ -160,8 +162,8 @@ func TestShardReader(t *testing.T) {
 	client := NewMockDynamoDBStreamer(ctrl)
 	srs := NewShardReaderService(aws.String("test-arn"), client)
 
-	shard := &dynamodbstreams.Shard{
-		SequenceNumberRange: &dynamodbstreams.SequenceNumberRange{
+	shard := &types.Shard{
+		SequenceNumberRange: &types.SequenceNumberRange{
 			StartingSequenceNumber: aws.String("0000"),
 			EndingSequenceNumber:   aws.String("0003"),
 		},
@@ -173,64 +175,64 @@ func TestShardReader(t *testing.T) {
 	require.True(sr.Next())
 	assert.Equal("shard-1", sr.ShardID())
 
-	var expects []*gomock.Call
+	var expects []any
 
 	// should request an iterator for the latest record
-	expects = append(expects, client.EXPECT().GetShardIterator(&dynamodbstreams.GetShardIteratorInput{
+	expects = append(expects, client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           aws.String("shard-1"),
-		ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeTrimHorizon),
+		ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 		StreamArn:         aws.String("test-arn"),
 	}).Return(&dynamodbstreams.GetShardIteratorOutput{
 		ShardIterator: aws.String("itr-1"),
 	}, nil))
 
-	expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+	expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 		ShardIterator: aws.String("itr-1"),
 	}).Return(&dynamodbstreams.GetRecordsOutput{
 		NextShardIterator: aws.String("itr-2"),
 		Records:           records1,
 	}, nil))
 
-	actual, err := sr.ReadRecords()
+	actual, err := sr.ReadRecords(context.Background())
 	assert.NoError(err)
 	assert.ElementsMatch(records1, actual)
 	require.True(sr.Next())
 
-	expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+	expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 		ShardIterator: aws.String("itr-2"),
 	}).Return(&dynamodbstreams.GetRecordsOutput{
 		Records: records2,
 	}, nil))
 
-	actual, err = sr.ReadRecords()
+	actual, err = sr.ReadRecords(context.Background())
 	assert.NoError(err)
 	assert.ElementsMatch(records2, actual)
 	require.False(sr.Next(), "because the shard is closed")
 
-	actual, err = sr.ReadRecords()
+	actual, err = sr.ReadRecords(context.Background())
 	assert.ErrorIs(err, ErrEndOfShard)
 	assert.Nil(actual)
 
 	// seek to the beginning
-	sr.Seek(records1[0])
+	sr.Seek(&records1[0])
 
 	// should seek to 0000
-	expects = append(expects, client.EXPECT().GetShardIterator(&dynamodbstreams.GetShardIteratorInput{
+	expects = append(expects, client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
 		SequenceNumber:    aws.String("0000"),
 		ShardId:           aws.String("shard-1"),
-		ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeAtSequenceNumber),
+		ShardIteratorType: types.ShardIteratorTypeAtSequenceNumber,
 		StreamArn:         aws.String("test-arn"),
 	}).Return(&dynamodbstreams.GetShardIteratorOutput{
 		ShardIterator: aws.String("itr-5"),
 	}, nil))
 
-	expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+	expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 		ShardIterator: aws.String("itr-5"),
 	}).Return(&dynamodbstreams.GetRecordsOutput{
 		Records: records1,
 	}, nil))
 
-	actual, err = sr.ReadRecords()
+	actual, err = sr.ReadRecords(context.Background())
 	assert.NoError(err)
 	assert.ElementsMatch(records1, actual)
 	require.False(sr.Next(), "because the shard is closed")

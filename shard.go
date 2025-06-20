@@ -1,19 +1,19 @@
 package koro
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 )
 
 var (
 	ErrEndOfShard = errors.New("koro: End of Shard")
 )
 
-// ShardReaderService is a factory service that creates a new *ShardReader from *dynamodbstreams.Shard.
+// ShardReaderService is a factory service that creates a new *ShardReader from *types.Shard.
 type ShardReaderService struct {
 	arn    *string
 	client DynamoDBStreamer
@@ -27,8 +27,8 @@ func NewShardReaderService(arn *string, client DynamoDBStreamer) *ShardReaderSer
 	}
 }
 
-// NewReader creates a *ShardReader by *dynamodbstreams.Shard.
-func (srs *ShardReaderService) NewReader(shard *dynamodbstreams.Shard) *ShardReader {
+// NewReader creates a *ShardReader by *types.Shard.
+func (srs *ShardReaderService) NewReader(shard *types.Shard) *ShardReader {
 	return &ShardReader{
 		client:    srs.client,
 		streamArn: srs.arn,
@@ -36,11 +36,11 @@ func (srs *ShardReaderService) NewReader(shard *dynamodbstreams.Shard) *ShardRea
 	}
 }
 
-// ShardReader provides a reader interface for *dynamodbstreams.Shard.
+// ShardReader provides a reader interface for *types.Shard.
 type ShardReader struct {
 	client    DynamoDBStreamer
 	streamArn *string
-	shard     *dynamodbstreams.Shard
+	shard     *types.Shard
 
 	rpos *string
 	itr  *string
@@ -50,17 +50,9 @@ type ShardReader struct {
 }
 
 func IsShardNotFoundError(origErr error) bool {
-	err := errors.Unwrap(origErr)
-	if err == nil {
-		err = origErr
-	}
+	var errResourceNotFound *types.ResourceNotFoundException
 
-	awsErr, ok := origErr.(awserr.Error)
-	if !ok {
-		return false
-	}
-
-	return awsErr.Code() == dynamodbstreams.ErrCodeResourceNotFoundException
+	return errors.As(origErr, &errResourceNotFound)
 }
 
 // Next returns true if the reader doesn't reach the end of shard.
@@ -73,19 +65,22 @@ func (r *ShardReader) ShardID() string {
 }
 
 // ReadRecords reads records from the shard. It will automatically update the shard iterator for you.
-func (r *ShardReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
+func (r *ShardReader) ReadRecords(ctx context.Context) ([]types.Record, error) {
 	if r.eos {
 		return nil, ErrEndOfShard
 	}
 
-	itr, err := r.getShardIterator()
+	itr, err := r.getShardIterator(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := r.client.GetRecords(&dynamodbstreams.GetRecordsInput{
-		ShardIterator: itr,
-	})
+	resp, err := r.client.GetRecords(
+		ctx,
+		&dynamodbstreams.GetRecordsInput{
+			ShardIterator: itr,
+		},
+	)
 
 	if err != nil {
 		if IsShardNotFoundError(err) {
@@ -107,7 +102,7 @@ func (r *ShardReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
 
 // Seek advances the iterator to a given record. The next iterator will read record at rc.
 // When a caller is unable to a record, you should seek the iterator to the record in order to restart the processing at the record.
-func (r *ShardReader) Seek(rc *dynamodbstreams.Record) {
+func (r *ShardReader) Seek(rc *types.Record) {
 	r.rpos = rc.Dynamodb.SequenceNumber
 	r.eos = false
 	r.itr = nil
@@ -120,9 +115,9 @@ func (r *ShardReader) Reset() {
 	r.itr = nil
 }
 
-func (r *ShardReader) getShardIterator() (*string, error) {
+func (r *ShardReader) getShardIterator(ctx context.Context) (*string, error) {
 	if r.itr == nil {
-		resp, err := r.client.GetShardIterator(r.buildShardIteratorRequest())
+		resp, err := r.client.GetShardIterator(ctx, r.buildShardIteratorRequest())
 		if err != nil {
 			return nil, fmt.Errorf("getting the shard iterator: %w", err)
 		}
@@ -137,7 +132,7 @@ func (r *ShardReader) buildShardIteratorRequest() *dynamodbstreams.GetShardItera
 		// will read from the oldest
 		return &dynamodbstreams.GetShardIteratorInput{
 			ShardId:           r.shard.ShardId,
-			ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeTrimHorizon),
+			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 			StreamArn:         r.streamArn,
 		}
 	}
@@ -145,15 +140,15 @@ func (r *ShardReader) buildShardIteratorRequest() *dynamodbstreams.GetShardItera
 	// will request an iterator that starts at rpos
 	return &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           r.shard.ShardId,
-		ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeAtSequenceNumber),
+		ShardIteratorType: types.ShardIteratorTypeAtSequenceNumber,
 		StreamArn:         r.streamArn,
 		SequenceNumber:    r.rpos,
 	}
 }
 
 // SortShards sorts shards from a parent-to-child.
-func SortShards(shards []*dynamodbstreams.Shard) []*dynamodbstreams.Shard {
-	newShards := make([]*dynamodbstreams.Shard, 0, len(shards))
+func SortShards(shards []types.Shard) []types.Shard {
+	newShards := make([]types.Shard, 0, len(shards))
 
 	var prev string
 	for i, s := range shards {

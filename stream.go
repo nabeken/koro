@@ -2,20 +2,22 @@
 package koro
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 )
 
 // DynamoDBStreamer is a subset of DynamoDB Streams API interface.
 type DynamoDBStreamer interface {
-	GetRecords(*dynamodbstreams.GetRecordsInput) (*dynamodbstreams.GetRecordsOutput, error)
-	GetShardIterator(*dynamodbstreams.GetShardIteratorInput) (*dynamodbstreams.GetShardIteratorOutput, error)
-	ListStreams(*dynamodbstreams.ListStreamsInput) (*dynamodbstreams.ListStreamsOutput, error)
-	DescribeStream(*dynamodbstreams.DescribeStreamInput) (*dynamodbstreams.DescribeStreamOutput, error)
+	GetRecords(context.Context, *dynamodbstreams.GetRecordsInput, ...func(*dynamodbstreams.Options)) (*dynamodbstreams.GetRecordsOutput, error)
+	GetShardIterator(context.Context, *dynamodbstreams.GetShardIteratorInput, ...func(*dynamodbstreams.Options)) (*dynamodbstreams.GetShardIteratorOutput, error)
+	ListStreams(context.Context, *dynamodbstreams.ListStreamsInput, ...func(*dynamodbstreams.Options)) (*dynamodbstreams.ListStreamsOutput, error)
+	DescribeStream(context.Context, *dynamodbstreams.DescribeStreamInput, ...func(*dynamodbstreams.Options)) (*dynamodbstreams.DescribeStreamOutput, error)
 }
 
 // ErrNoAvailShards will be returned when there are no available shards for reading.
@@ -36,38 +38,38 @@ type StreamReader struct {
 }
 
 // NewStreamByName creates a *StreamReader by a given table name.
-func NewStreamByName(dsr DynamoDBStreamer, tn string) (*StreamReader, error) {
+func NewStreamByName(ctx context.Context, dsr DynamoDBStreamer, tn string) (*StreamReader, error) {
 	client := &client{client: dsr}
 
-	arn, err := client.describeStreamArn(tn)
+	arn, err := client.describeStreamArn(ctx, tn)
 	if err != nil {
 		return nil, err
 	}
 
-	return newStreamReader(client, arn)
+	return newStreamReader(ctx, client, arn)
 }
 
 // NewStreamByName creates a *StreamReader by a stream ARN.
-func NewStreamReader(dsr DynamoDBStreamer, arn *string) (*StreamReader, error) {
-	return newStreamReader(&client{client: dsr}, arn)
+func NewStreamReader(ctx context.Context, dsr DynamoDBStreamer, arn *string) (*StreamReader, error) {
+	return newStreamReader(ctx, &client{client: dsr}, arn)
 }
 
-func newStreamReader(client *client, arn *string) (*StreamReader, error) {
+func newStreamReader(ctx context.Context, client *client, arn *string) (*StreamReader, error) {
 	sr := &StreamReader{
 		client: client,
 		arn:    arn,
 		srs:    NewShardReaderService(arn, client.client),
 	}
 
-	if err := sr.init(); err != nil {
+	if err := sr.init(ctx); err != nil {
 		return nil, fmt.Errorf("initializing the reader: %w", err)
 	}
 
 	return sr, nil
 }
 
-func (sr *StreamReader) init() error {
-	shards, err := sr.client.describeShards(sr.arn)
+func (sr *StreamReader) init(ctx context.Context) error {
+	shards, err := sr.client.describeShards(ctx, sr.arn)
 	if err != nil {
 		return err
 	}
@@ -79,7 +81,7 @@ func (sr *StreamReader) init() error {
 
 	var readers []*ShardReader
 	for _, s := range shards {
-		readers = append(readers, sr.srs.NewReader(s))
+		readers = append(readers, sr.srs.NewReader(&s))
 	}
 
 	sr.readers = readers
@@ -100,7 +102,7 @@ func (sr *StreamReader) Reader() *ShardReader {
 	return sr.reader()
 }
 
-func (sr *StreamReader) moveToNextReader() error {
+func (sr *StreamReader) moveToNextReader(ctx context.Context) error {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
@@ -113,7 +115,7 @@ func (sr *StreamReader) moveToNextReader() error {
 
 	// seems like the reader reaches the end of shards we know
 	// let's refresh shards information
-	if err := sr.init(); err != nil {
+	if err := sr.init(ctx); err != nil {
 		return fmt.Errorf("refreshing the reader: %w", err)
 	}
 
@@ -141,16 +143,16 @@ func (sr *StreamReader) seekReader() {
 }
 
 // ReadRecords reads the current shard. It will only move to the next shard if the current shard reader reaches the end of shard.
-func (sr *StreamReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
+func (sr *StreamReader) ReadRecords(ctx context.Context) ([]types.Record, error) {
 	for {
 		r := sr.Reader()
 
 		if r.Next() {
-			return r.ReadRecords()
+			return r.ReadRecords(ctx)
 		}
 
 		// move on the next shard
-		if err := sr.moveToNextReader(); err != nil {
+		if err := sr.moveToNextReader(ctx); err != nil {
 			return nil, err
 		}
 	}
@@ -158,7 +160,7 @@ func (sr *StreamReader) ReadRecords() ([]*dynamodbstreams.Record, error) {
 
 // Seek advances the iterator in the current shard. See ShardReader.Seek.
 // This should be called right after ReadRecords() if you want to restart from the same shard.
-func (sr *StreamReader) Seek(rc *dynamodbstreams.Record) {
+func (sr *StreamReader) Seek(rc *types.Record) {
 	sr.Reader().Seek(rc)
 }
 
@@ -166,12 +168,12 @@ type client struct {
 	client DynamoDBStreamer
 }
 
-func (c *client) describeStreamArn(tn string) (*string, error) {
+func (c *client) describeStreamArn(ctx context.Context, tn string) (*string, error) {
 	req := &dynamodbstreams.ListStreamsInput{
 		TableName: aws.String(tn),
 	}
 	for {
-		resp, err := c.client.ListStreams(req)
+		resp, err := c.client.ListStreams(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -192,14 +194,14 @@ func (c *client) describeStreamArn(tn string) (*string, error) {
 	return nil, fmt.Errorf("no stream found for %s", tn)
 }
 
-func (c *client) describeShards(arn *string) ([]*dynamodbstreams.Shard, error) {
+func (c *client) describeShards(ctx context.Context, arn *string) ([]types.Shard, error) {
 	req := &dynamodbstreams.DescribeStreamInput{
 		StreamArn: arn,
 	}
 
-	var shards []*dynamodbstreams.Shard
+	var shards []types.Shard
 	for {
-		resp, err := c.client.DescribeStream(req)
+		resp, err := c.client.DescribeStream(ctx, req)
 		if err != nil {
 			return nil, err
 		}

@@ -1,20 +1,22 @@
 package koro
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
-	dynamodbstreams "github.com/aws/aws-sdk-go/service/dynamodbstreams"
-	gomock "github.com/golang/mock/gomock"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	ddbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodbstreams/types"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 )
 
 const testTableName = "koro-test"
@@ -24,9 +26,9 @@ func TestStreamReader(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	client := NewMockDynamoDBStreamer(ctrl)
-	shards := []*dynamodbstreams.Shard{
+	shards := []types.Shard{
 		{
-			SequenceNumberRange: &dynamodbstreams.SequenceNumberRange{
+			SequenceNumberRange: &types.SequenceNumberRange{
 				StartingSequenceNumber: aws.String("0000"),
 				EndingSequenceNumber:   aws.String("0001"),
 			},
@@ -34,7 +36,7 @@ func TestStreamReader(t *testing.T) {
 		},
 		{
 			ParentShardId: aws.String("shard-1"),
-			SequenceNumberRange: &dynamodbstreams.SequenceNumberRange{
+			SequenceNumberRange: &types.SequenceNumberRange{
 				StartingSequenceNumber: aws.String("0002"),
 				EndingSequenceNumber:   aws.String("0003"),
 			},
@@ -42,88 +44,88 @@ func TestStreamReader(t *testing.T) {
 		},
 	}
 
-	var expects []*gomock.Call
+	var expects []any
 
 	// should request an iterator for the latest record
-	expects = append(expects, client.EXPECT().DescribeStream(&dynamodbstreams.DescribeStreamInput{
+	expects = append(expects, client.EXPECT().DescribeStream(gomock.Any(), &dynamodbstreams.DescribeStreamInput{
 		StreamArn: aws.String("test-arn"),
 	}).Return(&dynamodbstreams.DescribeStreamOutput{
-		StreamDescription: &dynamodbstreams.StreamDescription{
+		StreamDescription: &types.StreamDescription{
 			Shards:    shards,
 			StreamArn: aws.String("test-arn"),
 		},
 	}, nil))
 
-	sr, err := NewStreamReader(client, aws.String("test-arn"))
+	sr, err := NewStreamReader(context.Background(), client, aws.String("test-arn"))
 	require.NoError(err)
 
 	// reading shard-1
 	{
-		expects = append(expects, client.EXPECT().GetShardIterator(&dynamodbstreams.GetShardIteratorInput{
+		expects = append(expects, client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
 			ShardId:           aws.String("shard-1"),
-			ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeTrimHorizon),
+			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 			StreamArn:         aws.String("test-arn"),
 		}).Return(&dynamodbstreams.GetShardIteratorOutput{
 			ShardIterator: aws.String("itr-1-1"),
 		}, nil))
 
-		expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 			ShardIterator: aws.String("itr-1-1"),
 		}).Return(&dynamodbstreams.GetRecordsOutput{
 			Records:           records1,
 			NextShardIterator: aws.String("itr-1-2"),
 		}, nil))
 
-		actual1, err1 := sr.ReadRecords()
+		actual1, err1 := sr.ReadRecords(context.Background())
 		require.NoError(err1)
 		require.ElementsMatch(records1, actual1)
 
-		expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 			ShardIterator: aws.String("itr-1-2"),
 		}).Return(&dynamodbstreams.GetRecordsOutput{
 			Records: records2,
 		}, nil))
-		actual2, err2 := sr.ReadRecords()
+		actual2, err2 := sr.ReadRecords(context.Background())
 		require.NoError(err2)
 		require.ElementsMatch(records2, actual2)
 	}
 
 	// reading shard-2
 	{
-		expects = append(expects, client.EXPECT().GetShardIterator(&dynamodbstreams.GetShardIteratorInput{
+		expects = append(expects, client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
 			ShardId:           aws.String("shard-2"),
-			ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeTrimHorizon),
+			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 			StreamArn:         aws.String("test-arn"),
 		}).Return(&dynamodbstreams.GetShardIteratorOutput{
 			ShardIterator: aws.String("itr-2-1"),
 		}, nil))
 
-		expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 			ShardIterator: aws.String("itr-2-1"),
 		}).Return(&dynamodbstreams.GetRecordsOutput{
 			Records:           records1,
 			NextShardIterator: aws.String("itr-2-2"),
 		}, nil))
 
-		actual1, err1 := sr.ReadRecords()
+		actual1, err1 := sr.ReadRecords(context.Background())
 		require.NoError(err1)
 		require.ElementsMatch(records1, actual1)
 
-		expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 			ShardIterator: aws.String("itr-2-2"),
 		}).Return(&dynamodbstreams.GetRecordsOutput{
 			Records: records2,
 		}, nil))
-		actual2, err2 := sr.ReadRecords()
+		actual2, err2 := sr.ReadRecords(context.Background())
 		require.NoError(err2)
 		require.ElementsMatch(records2, actual2)
 	}
 
 	// reading shard-3 that was added after the first attempt
 	{
-		shards = append(shards, &dynamodbstreams.Shard{
+		shards = append(shards, types.Shard{
 			ParentShardId: aws.String("shard-2"),
-			SequenceNumberRange: &dynamodbstreams.SequenceNumberRange{
+			SequenceNumberRange: &types.SequenceNumberRange{
 				StartingSequenceNumber: aws.String("0004"),
 				EndingSequenceNumber:   aws.String("0005"),
 			},
@@ -131,68 +133,68 @@ func TestStreamReader(t *testing.T) {
 		})
 
 		// should request an iterator for the latest record
-		expects = append(expects, client.EXPECT().DescribeStream(&dynamodbstreams.DescribeStreamInput{
+		expects = append(expects, client.EXPECT().DescribeStream(gomock.Any(), &dynamodbstreams.DescribeStreamInput{
 			StreamArn: aws.String("test-arn"),
 		}).Return(&dynamodbstreams.DescribeStreamOutput{
-			StreamDescription: &dynamodbstreams.StreamDescription{
+			StreamDescription: &types.StreamDescription{
 				Shards:    shards,
 				StreamArn: aws.String("test-arn"),
 			},
 		}, nil))
 
-		expects = append(expects, client.EXPECT().GetShardIterator(&dynamodbstreams.GetShardIteratorInput{
+		expects = append(expects, client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
 			ShardId:           aws.String("shard-3"),
-			ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeTrimHorizon),
+			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
 			StreamArn:         aws.String("test-arn"),
 		}).Return(&dynamodbstreams.GetShardIteratorOutput{
 			ShardIterator: aws.String("itr-3-1"),
 		}, nil))
 
-		expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 			ShardIterator: aws.String("itr-3-1"),
 		}).Return(&dynamodbstreams.GetRecordsOutput{
 			Records: records3,
 		}, nil))
 
-		actual1, err1 := sr.ReadRecords()
+		actual1, err1 := sr.ReadRecords(context.Background())
 		require.NoError(err1)
 		require.ElementsMatch(records3, actual1)
 
 		// seek to the beginning
-		sr.Seek(records3[0])
+		sr.Seek(&records3[0])
 
-		expects = append(expects, client.EXPECT().GetShardIterator(&dynamodbstreams.GetShardIteratorInput{
+		expects = append(expects, client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
 			ShardId:           aws.String("shard-3"),
-			ShardIteratorType: aws.String(dynamodbstreams.ShardIteratorTypeAtSequenceNumber),
+			ShardIteratorType: types.ShardIteratorTypeAtSequenceNumber,
 			StreamArn:         aws.String("test-arn"),
 			SequenceNumber:    records3[0].Dynamodb.SequenceNumber,
 		}).Return(&dynamodbstreams.GetShardIteratorOutput{
 			ShardIterator: aws.String("itr-3-2"),
 		}, nil))
 
-		expects = append(expects, client.EXPECT().GetRecords(&dynamodbstreams.GetRecordsInput{
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
 			ShardIterator: aws.String("itr-3-2"),
 		}).Return(&dynamodbstreams.GetRecordsOutput{
 			Records: records3,
 		}, nil))
 
-		actual2, err2 := sr.ReadRecords()
+		actual2, err2 := sr.ReadRecords(context.Background())
 		require.NoError(err2)
 		require.ElementsMatch(records3, actual2)
 	}
 
 	// we don't have more shards to read so it will return error
-	expects = append(expects, client.EXPECT().DescribeStream(&dynamodbstreams.DescribeStreamInput{
+	expects = append(expects, client.EXPECT().DescribeStream(gomock.Any(), &dynamodbstreams.DescribeStreamInput{
 		StreamArn: aws.String("test-arn"),
 	}).Return(&dynamodbstreams.DescribeStreamOutput{
-		StreamDescription: &dynamodbstreams.StreamDescription{
+		StreamDescription: &types.StreamDescription{
 			Shards:    shards, // return the same shards we have read
 			StreamArn: aws.String("test-arn"),
 		},
 	}, nil))
 
 	// no available shards
-	_, err = sr.ReadRecords()
+	_, err = sr.ReadRecords(context.Background())
 	require.ErrorIs(err, ErrNoAvailShards)
 
 	gomock.InOrder(expects...)
@@ -203,25 +205,37 @@ func TestDynamoDBStreams(t *testing.T) {
 		t.Skip("skipping test in short mode.")
 	}
 
+	ctx := context.Background()
+
 	require := require.New(t)
 
-	cred := credentials.NewStaticCredentials("koro", "koro", "")
-	sess := session.Must(session.NewSession(
-		aws.NewConfig().WithRegion("ddblocal").WithEndpoint(os.Getenv("DYNAMODB_ADDR")).WithCredentials(cred),
-	))
+	cfg, err := config.LoadDefaultConfig(
+		context.Background(),
+		config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(
+				"koro", "koro", "",
+			),
+		),
+
+		config.WithRegion("us-west-2"),
+	)
+
+	cfg.BaseEndpoint = aws.String(os.Getenv("DYNAMODB_ADDR"))
+
+	require.NoError(err)
 
 	tc := &TestClient{
-		client: dynamodb.New(sess),
+		client: dynamodb.NewFromConfig(cfg),
 	}
 
 	t.Log("Creating the table...")
-	if err := tc.CreateTable(); err != nil {
+	if err := tc.CreateTable(ctx); err != nil {
 		t.Fatal(err)
 	}
 
 	t.Cleanup(func() {
 		t.Log("Deleting the table...")
-		if err := tc.DeleteTable(); err != nil {
+		if err := tc.DeleteTable(ctx); err != nil {
 			t.Log(err)
 		}
 	})
@@ -236,14 +250,14 @@ func TestDynamoDBStreams(t *testing.T) {
 			}
 			t.Logf("%d items wrote", nItems)
 			if i == 0 {
-				tc.DisableStream()
+				tc.DisableStream(ctx)
 			}
 		}
 	}()
 
-	streams := dynamodbstreams.New(sess)
+	streams := dynamodbstreams.NewFromConfig(cfg)
 
-	str, err := NewStreamByName(streams, testTableName)
+	str, err := NewStreamByName(context.Background(), streams, testTableName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +271,7 @@ func TestDynamoDBStreams(t *testing.T) {
 
 	// seek to the beginning
 	t.Log("Seeking to the beginning...")
-	str.Seek(actual1[0])
+	str.Seek(&actual1[0])
 
 	t.Log("Reading the shard again from the beginning...")
 	actual2, err2 := readAll(str)
@@ -271,11 +285,11 @@ func TestDynamoDBStreams(t *testing.T) {
 
 // readAll reads all records until it gets ErrNoAvailShards or unexpected error.
 // If err == ErrNoAvailShards, err will be nil.
-func readAll(sr *StreamReader) ([]*dynamodbstreams.Record, error) {
-	var got []*dynamodbstreams.Record
+func readAll(sr *StreamReader) ([]types.Record, error) {
+	var got []types.Record
 
 	for {
-		records, err := sr.ReadRecords()
+		records, err := sr.ReadRecords(context.Background())
 		if err != nil {
 			if errors.Is(err, ErrNoAvailShards) {
 				break
@@ -295,73 +309,79 @@ func readAll(sr *StreamReader) ([]*dynamodbstreams.Record, error) {
 
 // TestClient implements utility methods for the testing.
 type TestClient struct {
-	client *dynamodb.DynamoDB
+	client *dynamodb.Client
 }
 
-func (tc *TestClient) CreateTable() error {
-	_, err := tc.client.CreateTable(&dynamodb.CreateTableInput{
+func (tc *TestClient) CreateTable(ctx context.Context) error {
+	_, err := tc.client.CreateTable(ctx, &dynamodb.CreateTableInput{
 		TableName: aws.String(testTableName),
-		AttributeDefinitions: []*dynamodb.AttributeDefinition{
+		AttributeDefinitions: []ddbtypes.AttributeDefinition{
 			{
 				AttributeName: aws.String("id"),
-				AttributeType: aws.String(dynamodb.ScalarAttributeTypeS),
+				AttributeType: ddbtypes.ScalarAttributeTypeS,
 			},
 			{
 				AttributeName: aws.String("date"),
-				AttributeType: aws.String(dynamodb.ScalarAttributeTypeS),
+				AttributeType: ddbtypes.ScalarAttributeTypeS,
 			},
 		},
-		KeySchema: []*dynamodb.KeySchemaElement{
+		KeySchema: []ddbtypes.KeySchemaElement{
 			{
 				AttributeName: aws.String("id"),
-				KeyType:       aws.String(dynamodb.KeyTypeHash),
+				KeyType:       ddbtypes.KeyTypeHash,
 			},
 			{
 				AttributeName: aws.String("date"),
-				KeyType:       aws.String(dynamodb.KeyTypeRange),
+				KeyType:       ddbtypes.KeyTypeRange,
 			},
 		},
-		ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+		ProvisionedThroughput: &ddbtypes.ProvisionedThroughput{
 			ReadCapacityUnits:  aws.Int64(1),
 			WriteCapacityUnits: aws.Int64(1),
 		},
-		StreamSpecification: &dynamodb.StreamSpecification{
+		StreamSpecification: &ddbtypes.StreamSpecification{
 			StreamEnabled:  aws.Bool(true),
-			StreamViewType: aws.String(dynamodb.StreamViewTypeNewImage),
+			StreamViewType: ddbtypes.StreamViewTypeNewImage,
 		},
 	})
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == dynamodb.ErrCodeResourceInUseException {
+		var awsErr *ddbtypes.ResourceInUseException
+		if errors.As(err, &awsErr) {
 			return nil
 		}
 		return fmt.Errorf("creating the testing table: %w", err)
 	}
 
-	return tc.client.WaitUntilTableExists(&dynamodb.DescribeTableInput{
+	waiter := dynamodb.NewTableExistsWaiter(tc.client)
+
+	return waiter.Wait(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(testTableName),
-	})
+	}, 5*time.Minute)
 }
 
-func (tc *TestClient) DeleteTable() error {
-	_, err := tc.client.DeleteTable(&dynamodb.DeleteTableInput{
+func (tc *TestClient) DeleteTable(ctx context.Context) error {
+	_, err := tc.client.DeleteTable(ctx, &dynamodb.DeleteTableInput{
 		TableName: aws.String(testTableName),
 	})
 	if err != nil {
-		if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == dynamodb.ErrCodeResourceNotFoundException {
+		var awsErr *ddbtypes.ResourceNotFoundException
+		if errors.As(err, &awsErr) {
 			return nil
 		}
 		return fmt.Errorf("deleting the testing table: %w", err)
 	}
 
-	return tc.client.WaitUntilTableNotExists(&dynamodb.DescribeTableInput{
+	waiter := dynamodb.NewTableNotExistsWaiter(tc.client)
+
+	return waiter.Wait(ctx, &dynamodb.DescribeTableInput{
 		TableName: aws.String(testTableName),
-	})
+	}, 5*time.Minute)
 }
 
-func (tc *TestClient) DisableStream() error {
-	_, err := tc.client.UpdateTable(&dynamodb.UpdateTableInput{
+func (tc *TestClient) DisableStream(ctx context.Context) error {
+	_, err := tc.client.UpdateTable(ctx, &dynamodb.UpdateTableInput{
 		TableName: aws.String(testTableName),
-		StreamSpecification: &dynamodb.StreamSpecification{
+		StreamSpecification: &ddbtypes.StreamSpecification{
 			StreamEnabled: aws.Bool(false),
 		},
 	})
@@ -369,18 +389,20 @@ func (tc *TestClient) DisableStream() error {
 }
 
 func (tc *TestClient) WriteTestItemNTimes(ntimes int) error {
-	for i := 0; i < ntimes; i++ {
+	ctx := context.Background()
+
+	for i := range ntimes {
 		testID := fmt.Sprintf("test-%d", i)
-		_, err := tc.client.PutItem(&dynamodb.PutItemInput{
-			Item: map[string]*dynamodb.AttributeValue{
-				"id": {
-					S: aws.String(testID),
+		_, err := tc.client.PutItem(ctx, &dynamodb.PutItemInput{
+			Item: map[string]ddbtypes.AttributeValue{
+				"id": &ddbtypes.AttributeValueMemberS{
+					Value: testID,
 				},
-				"date": {
-					S: aws.String(testID),
+				"date": &ddbtypes.AttributeValueMemberS{
+					Value: testID,
 				},
-				"value": {
-					N: aws.String(fmt.Sprintf("%d", i)),
+				"value": &ddbtypes.AttributeValueMemberN{
+					Value: fmt.Sprintf("%d", i),
 				},
 			},
 			TableName: aws.String(testTableName),

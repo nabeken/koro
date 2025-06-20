@@ -14,3 +14,18 @@ I'd want to have a similar setup in local environment (mainly for testing) but t
 ## Example
 
 See [`stream_test.go`](stream_test.go) for the detail.
+
+## Testing
+Some of the tests utilize actual connection to DynamoDB. `docker-compose.yml` is provided to run preconfigured DynamoDB Local and can be used for testing.
+
+```bash
+docker compose up -d
+
+export DYNAMODB_ADDR=http://localhost:8111
+```
+
+Then you can run the tests:
+
+```bash
+go test  ./...
+```
