@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/nabeken/koro/compare/v1.0.0...v2.0.0) (2025-06-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* prep for v2 ([#14](https://github.com/nabeken/koro/issues/14))
+
+### Features
+
+* prep for v2 ([#14](https://github.com/nabeken/koro/issues/14)) ([1ce988d](https://github.com/nabeken/koro/commit/1ce988d3fe9b5365df058618935c47a048d5cbb1))
+
 ## 1.0.0 (2025-06-20)
 
 
