@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.0.2](https://github.com/nabeken/koro/compare/v2.0.1...v2.0.2) (2025-08-08)
+
+
+### Bug Fixes
+
+* **deps:** update aws-sdk-go-v2 monorepo ([#24](https://github.com/nabeken/koro/issues/24)) ([dd36ebb](https://github.com/nabeken/koro/commit/dd36ebbee218f9d6dd3f1f5f5194b63cf05c5cc1))
+* **deps:** update aws-sdk-go-v2 monorepo ([#28](https://github.com/nabeken/koro/issues/28)) ([d11a7e2](https://github.com/nabeken/koro/commit/d11a7e2e26c988c8a8622bc1916f646ebf50ac2a))
+* **deps:** update dependency go to v1.24.6 ([#26](https://github.com/nabeken/koro/issues/26)) ([df8376f](https://github.com/nabeken/koro/commit/df8376f93d5c4844ae57778ce99e6b4e3ae8c75d))
+* **deps:** update dependency golang to v1.24.6 ([#27](https://github.com/nabeken/koro/issues/27)) ([4c40d21](https://github.com/nabeken/koro/commit/4c40d215bdfeef30ae9cecea27866145b347ac84))
+
 ## [2.0.1](https://github.com/nabeken/koro/compare/v2.0.0...v2.0.1) (2025-07-20)
 
 
