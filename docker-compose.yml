@@ -1,6 +1,6 @@
 services:
   dynamodb:
-    image: amazon/dynamodb-local:3.0.0
+    image: amazon/dynamodb-local:3.1.0
     ports:
       - '8111:8000'
     command: -jar DynamoDBLocal.jar
