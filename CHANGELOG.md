@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.0.2](https://github.com/nabeken/koro/compare/v2.0.1...v2.0.2) (2025-10-08)
+
+
+### Bug Fixes
+
+* **deps:** update actions/checkout action to v5 ([#30](https://github.com/nabeken/koro/issues/30)) ([65acc4c](https://github.com/nabeken/koro/commit/65acc4cd8c1d54fca2adf7bbe94bc2d6af087e09))
+* **deps:** update actions/checkout digest to 08eba0b ([#29](https://github.com/nabeken/koro/issues/29)) ([8b5c7b8](https://github.com/nabeken/koro/commit/8b5c7b8575bbbbea306708cc9baa399a2e64c564))
+* **deps:** update actions/setup-go action to v6 ([#42](https://github.com/nabeken/koro/issues/42)) ([67484d9](https://github.com/nabeken/koro/commit/67484d988542afed686aa0571c4d4ec3ff504e3c))
+* **deps:** update amazon/dynamodb-local docker tag to v3.1.0 ([#43](https://github.com/nabeken/koro/issues/43)) ([2ce695e](https://github.com/nabeken/koro/commit/2ce695eac7339db833e656902a5e8fb2963870e1))
+* **deps:** update aws-sdk-go-v2 monorepo ([#24](https://github.com/nabeken/koro/issues/24)) ([dd36ebb](https://github.com/nabeken/koro/commit/dd36ebbee218f9d6dd3f1f5f5194b63cf05c5cc1))
+* **deps:** update aws-sdk-go-v2 monorepo ([#28](https://github.com/nabeken/koro/issues/28)) ([d11a7e2](https://github.com/nabeken/koro/commit/d11a7e2e26c988c8a8622bc1916f646ebf50ac2a))
+* **deps:** update aws-sdk-go-v2 monorepo ([#33](https://github.com/nabeken/koro/issues/33)) ([1c4f164](https://github.com/nabeken/koro/commit/1c4f164bd44509ab2149ced220b0dd4a45eb780f))
+* **deps:** update aws-sdk-go-v2 monorepo ([#37](https://github.com/nabeken/koro/issues/37)) ([4c07fa5](https://github.com/nabeken/koro/commit/4c07fa5ae8a83c6b6ad6a0264f84467c69432af8))
+* **deps:** update aws-sdk-go-v2 monorepo ([#39](https://github.com/nabeken/koro/issues/39)) ([229fa4f](https://github.com/nabeken/koro/commit/229fa4f2eb04df04cdde132208b2613d170f9836))
+* **deps:** update aws-sdk-go-v2 monorepo ([#44](https://github.com/nabeken/koro/issues/44)) ([d4bb902](https://github.com/nabeken/koro/commit/d4bb9024283679d2ab81232b4c424564780e8fdd))
+* **deps:** update aws-sdk-go-v2 monorepo ([#45](https://github.com/nabeken/koro/issues/45)) ([08b92d2](https://github.com/nabeken/koro/commit/08b92d27e13b48f7926fba54e7e0bb1af6f9b5d8))
+* **deps:** update aws-sdk-go-v2 monorepo ([#46](https://github.com/nabeken/koro/issues/46)) ([0744764](https://github.com/nabeken/koro/commit/0744764a02d8e9c022e9c6a61283cfa3640f8bdd))
+* **deps:** update dependency go to v1.24.6 ([#26](https://github.com/nabeken/koro/issues/26)) ([df8376f](https://github.com/nabeken/koro/commit/df8376f93d5c4844ae57778ce99e6b4e3ae8c75d))
+* **deps:** update dependency go to v1.25.0 ([#31](https://github.com/nabeken/koro/issues/31)) ([8ee112b](https://github.com/nabeken/koro/commit/8ee112b3ce6844c408ebc34b50a1eadfbd4b3d14))
+* **deps:** update dependency go to v1.25.1 ([#40](https://github.com/nabeken/koro/issues/40)) ([73c790d](https://github.com/nabeken/koro/commit/73c790dd88b8ce10a525785fca24cda3538b94bf))
+* **deps:** update dependency go to v1.25.2 ([#47](https://github.com/nabeken/koro/issues/47)) ([04aa25e](https://github.com/nabeken/koro/commit/04aa25e1cb53882f96633abb397b19b21480e377))
+* **deps:** update dependency golang to v1.24.6 ([#27](https://github.com/nabeken/koro/issues/27)) ([4c40d21](https://github.com/nabeken/koro/commit/4c40d215bdfeef30ae9cecea27866145b347ac84))
+* **deps:** update dependency golang to v1.25.0 ([#32](https://github.com/nabeken/koro/issues/32)) ([a8b1752](https://github.com/nabeken/koro/commit/a8b1752ef42df9aa80a33935409f28a1ddcb4e86))
+* **deps:** update dependency golang to v1.25.1 ([#41](https://github.com/nabeken/koro/issues/41)) ([424b577](https://github.com/nabeken/koro/commit/424b5771b5f02d412b625ba7981c52160c7c899f))
+* **deps:** update dependency golang to v1.25.2 ([#48](https://github.com/nabeken/koro/issues/48)) ([bcd54fc](https://github.com/nabeken/koro/commit/bcd54fce7054c645593bb9c2a124d980f37562ff))
+* **deps:** update googleapis/release-please-action digest to c2a5a2b ([#36](https://github.com/nabeken/koro/issues/36)) ([a5933a6](https://github.com/nabeken/koro/commit/a5933a6b9e3b2fc108261d82bd8d1b45bc56196d))
+* **deps:** update module github.com/marwan-at-work/mod to v0.9.0 ([#34](https://github.com/nabeken/koro/issues/34)) ([c14ff42](https://github.com/nabeken/koro/commit/c14ff42a61b3506911fbd9858cec60235220db5b))
+* **deps:** update module github.com/stretchr/testify to v1.11.1 ([#38](https://github.com/nabeken/koro/issues/38)) ([f8515bc](https://github.com/nabeken/koro/commit/f8515bc174643c1f00f510c5c7dd7aafe9399e87))
+* **deps:** update module go.uber.org/mock to v0.6.0 ([#35](https://github.com/nabeken/koro/issues/35)) ([6583f3f](https://github.com/nabeken/koro/commit/6583f3fd28b9b6fa212506d2607e3c34d3981285))
+
 ## [2.0.1](https://github.com/nabeken/koro/compare/v2.0.0...v2.0.1) (2025-07-20)
 
 
