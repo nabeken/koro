@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.0.3](https://github.com/nabeken/koro/compare/v2.0.2...v2.0.3) (2026-01-23)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/aws/aws-sdk-go-v2/service/dynamodb to v1.54.0 ([#76](https://github.com/nabeken/koro/issues/76)) ([fe8b7ac](https://github.com/nabeken/koro/commit/fe8b7ac5b17f3e95b85676dda1529cbbb2480212))
+
 ## [2.0.2](https://github.com/nabeken/koro/compare/v2.0.1...v2.0.2) (2026-01-21)
 
 
