@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.3](https://github.com/nabeken/koro/compare/v2.0.2...v2.0.3) (2026-02-06)
+
+
+### Bug Fixes
+
+* **deps:** update actions/checkout digest to de0fac2 ([#78](https://github.com/nabeken/koro/issues/78)) ([4ae118a](https://github.com/nabeken/koro/commit/4ae118a0f58028135cd6b46d96427a25ce32a8e4))
+* **deps:** update dependency go to v1.25.7 ([#79](https://github.com/nabeken/koro/issues/79)) ([26ee983](https://github.com/nabeken/koro/commit/26ee983ea7642e3443d45582b83f31f55fd17386))
+* **deps:** update dependency golang to v1.25.7 ([#80](https://github.com/nabeken/koro/issues/80)) ([54b9474](https://github.com/nabeken/koro/commit/54b94741544b4922836a67df80a7b840e29a2a2c))
+* **deps:** update module github.com/aws/aws-sdk-go-v2/service/dynamodb to v1.54.0 ([#76](https://github.com/nabeken/koro/issues/76)) ([fe8b7ac](https://github.com/nabeken/koro/commit/fe8b7ac5b17f3e95b85676dda1529cbbb2480212))
+* **deps:** update module github.com/aws/aws-sdk-go-v2/service/dynamodb to v1.55.0 ([#81](https://github.com/nabeken/koro/issues/81)) ([92bbd36](https://github.com/nabeken/koro/commit/92bbd36e4a021a24738adb2dbaff43f0ff74df21))
+
 ## [2.0.2](https://github.com/nabeken/koro/compare/v2.0.1...v2.0.2) (2026-01-21)
 
 
