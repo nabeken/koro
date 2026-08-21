@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.37
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.63.4
 	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.36.7
-	github.com/stretchr/testify v1.11.1
+	github.com/stretchr/testify v1.12.1
 	go.uber.org/mock v0.6.0
 )
 
@@ -20,12 +20,10 @@ require (
 	github.com/andybalholm/cascadia v1.3.2 // indirect
 	github.com/cloudflare/circl v1.3.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/go-github/v52 v52.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/marwan-at-work/mod v0.10.0 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/urfave/cli/v2 v2.25.1 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
@@ -52,8 +50,8 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.7 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.7 // indirect
 	github.com/aws/smithy-go v1.27.8 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/sync v0.16.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 tool github.com/marwan-at-work/mod/cmd/mod
