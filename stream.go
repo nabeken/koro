@@ -108,6 +108,8 @@ func (sr *StreamReader) moveToNextReader(ctx context.Context) error {
 
 	sr.lastShardId = sr.reader().ShardID()
 
+	prev := sr.por
+
 	sr.por++
 	if sr.por < len(sr.readers) {
 		return nil
@@ -116,10 +118,18 @@ func (sr *StreamReader) moveToNextReader(ctx context.Context) error {
 	// seems like the reader reaches the end of shards we know
 	// let's refresh shards information
 	if err := sr.init(ctx); err != nil {
+		// por is past the end until the refresh succeeds, so put it back
+		sr.por = prev
+
 		return fmt.Errorf("refreshing the reader: %w", err)
 	}
 
-	sr.seekReader()
+	// the shard we were reading is gone, e.g. the stream has been replaced, so read the refreshed list from the beginning; its records may already have been delivered
+	if !sr.seekReader() {
+		sr.por = 0
+
+		return nil
+	}
 
 	// if the last shard is a shard we have read, there are no new open shard. Probably, the stream has been disabled.
 	if sr.por+1 == len(sr.readers) {
@@ -132,14 +142,16 @@ func (sr *StreamReader) moveToNextReader(ctx context.Context) error {
 	return nil
 }
 
-// seekReader advances the current reader of the lastShardId.
-func (sr *StreamReader) seekReader() {
+// seekReader advances the current reader of the lastShardId. It returns false if the shard is gone.
+func (sr *StreamReader) seekReader() bool {
 	for i := range sr.readers {
 		if sr.lastShardId == sr.readers[i].ShardID() {
 			sr.por = i
-			break
+			return true
 		}
 	}
+
+	return false
 }
 
 // ReadRecords reads the current shard. It will only move to the next shard if the current shard reader reaches the end of shard.

@@ -419,3 +419,109 @@ func (tc *TestClient) WriteTestItemNTimes(ntimes int) error {
 	}
 	return nil
 }
+
+func TestStreamReaderReplacedStream(t *testing.T) {
+	require := require.New(t)
+
+	ctrl := gomock.NewController(t)
+	client := NewMockDynamoDBStreamer(ctrl)
+
+	client.EXPECT().DescribeStream(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.DescribeStreamOutput{
+		StreamDescription: &types.StreamDescription{
+			Shards: []types.Shard{{
+				SequenceNumberRange: &types.SequenceNumberRange{
+					StartingSequenceNumber: aws.String("0000"),
+					EndingSequenceNumber:   aws.String("0001"),
+				},
+				ShardId: aws.String("shard-1"),
+			}},
+			StreamArn: aws.String("test-arn"),
+		},
+	}, nil)
+
+	sr, err := NewStreamReader(context.Background(), client, aws.String("test-arn"))
+	require.NoError(err)
+
+	client.EXPECT().GetShardIterator(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetShardIteratorOutput{
+		ShardIterator: aws.String("itr-1"),
+	}, nil).AnyTimes()
+
+	// draining shard-1 closes it
+	client.EXPECT().GetRecords(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetRecordsOutput{
+		Records: records1,
+	}, nil)
+
+	actual, err := sr.ReadRecords(context.Background())
+	require.NoError(err)
+	require.ElementsMatch(records1, actual)
+
+	// the refreshed stream no longer contains shard-1, e.g. it has been replaced
+	client.EXPECT().DescribeStream(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.DescribeStreamOutput{
+		StreamDescription: &types.StreamDescription{
+			Shards: []types.Shard{{
+				SequenceNumberRange: &types.SequenceNumberRange{
+					StartingSequenceNumber: aws.String("0000"),
+				},
+				ShardId: aws.String("shard-99"),
+			}},
+			StreamArn: aws.String("test-arn"),
+		},
+	}, nil).AnyTimes()
+
+	client.EXPECT().GetRecords(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetRecordsOutput{
+		NextShardIterator: aws.String("itr-2"),
+		Records:           records2,
+	}, nil)
+
+	// without the fix por runs past the refreshed shard list and the read panics
+	actual, err = sr.ReadRecords(context.Background())
+	require.NoError(err)
+	require.ElementsMatch(records2, actual)
+	require.Equal("shard-99", sr.Reader().ShardID())
+}
+
+func TestStreamReaderRefreshFailure(t *testing.T) {
+	require := require.New(t)
+
+	ctrl := gomock.NewController(t)
+	client := NewMockDynamoDBStreamer(ctrl)
+
+	client.EXPECT().DescribeStream(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.DescribeStreamOutput{
+		StreamDescription: &types.StreamDescription{
+			Shards: []types.Shard{{
+				SequenceNumberRange: &types.SequenceNumberRange{
+					StartingSequenceNumber: aws.String("0000"),
+					EndingSequenceNumber:   aws.String("0001"),
+				},
+				ShardId: aws.String("shard-1"),
+			}},
+			StreamArn: aws.String("test-arn"),
+		},
+	}, nil)
+
+	sr, err := NewStreamReader(context.Background(), client, aws.String("test-arn"))
+	require.NoError(err)
+
+	client.EXPECT().GetShardIterator(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetShardIteratorOutput{
+		ShardIterator: aws.String("itr-1"),
+	}, nil).AnyTimes()
+
+	client.EXPECT().GetRecords(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetRecordsOutput{
+		Records: records1,
+	}, nil)
+
+	_, err = sr.ReadRecords(context.Background())
+	require.NoError(err)
+
+	// a replaced stream has a new ARN, so describing the old one fails outright
+	client.EXPECT().DescribeStream(gomock.Any(), gomock.Any()).Return(
+		nil, &types.ResourceNotFoundException{Message: aws.String("Requested resource not found")},
+	).AnyTimes()
+
+	_, err = sr.ReadRecords(context.Background())
+	require.ErrorAs(err, new(*types.ResourceNotFoundException))
+
+	// por must be back in range, so reading again reports the failure rather than panicking
+	_, err = sr.ReadRecords(context.Background())
+	require.ErrorAs(err, new(*types.ResourceNotFoundException))
+}
