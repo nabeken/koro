@@ -42,8 +42,9 @@ type ShardReader struct {
 	streamArn *string
 	shard     *types.Shard
 
-	rpos *string
-	itr  *string
+	rpos     *string
+	rposType types.ShardIteratorType // AT for a seek, AFTER once the record at rpos has been delivered
+	itr      *string
 
 	// true if the reader at the end of shard
 	eos bool
@@ -64,46 +65,68 @@ func (r *ShardReader) ShardID() string {
 	return *r.shard.ShardId
 }
 
-// ReadRecords reads records from the shard. It will automatically update the shard iterator for you.
+// ReadRecords reads records from the shard. It will automatically update the shard iterator for you, renewing an expired one once.
 func (r *ShardReader) ReadRecords(ctx context.Context) ([]types.Record, error) {
 	if r.eos {
 		return nil, ErrEndOfShard
 	}
 
-	itr, err := r.getShardIterator(ctx)
-	if err != nil {
-		return nil, err
-	}
+	// a shard iterator expires in 15 minutes, and only one held from an earlier read can have been idle that long
+	mayRenew := r.itr != nil
 
-	resp, err := r.client.GetRecords(
-		ctx,
-		&dynamodbstreams.GetRecordsInput{
-			ShardIterator: itr,
-		},
-	)
-
-	if err != nil {
-		if IsShardNotFoundError(err) {
-			r.eos = true
-			return nil, nil
+	for {
+		itr, err := r.getShardIterator(ctx)
+		if err != nil {
+			return nil, err
 		}
-		return nil, fmt.Errorf("getting the records: %w", err)
-	}
 
-	if nextItr := resp.NextShardIterator; nextItr != nil {
-		r.itr = nextItr
-		r.rpos = nil
-	} else {
-		r.eos = true
-	}
+		resp, err := r.client.GetRecords(
+			ctx,
+			&dynamodbstreams.GetRecordsInput{
+				ShardIterator: itr,
+			},
+		)
 
-	return resp.Records, nil
+		if err != nil {
+			if IsShardNotFoundError(err) {
+				r.eos = true
+				return nil, nil
+			}
+
+			var errExpiredItr *types.ExpiredIteratorException
+			if mayRenew && errors.As(err, &errExpiredItr) {
+				r.itr = nil
+				mayRenew = false
+
+				continue
+			}
+
+			return nil, fmt.Errorf("getting the records: %w", err)
+		}
+
+		// clearing rpos would resume from the oldest record, so a record without a sequence number leaves it alone
+		if n := len(resp.Records); n > 0 {
+			if d := resp.Records[n-1].Dynamodb; d != nil && d.SequenceNumber != nil {
+				r.rpos = d.SequenceNumber
+				r.rposType = types.ShardIteratorTypeAfterSequenceNumber
+			}
+		}
+
+		if nextItr := resp.NextShardIterator; nextItr != nil {
+			r.itr = nextItr
+		} else {
+			r.eos = true
+		}
+
+		return resp.Records, nil
+	}
 }
 
 // Seek advances the iterator to a given record. The next iterator will read record at rc.
 // When a caller is unable to a record, you should seek the iterator to the record in order to restart the processing at the record.
 func (r *ShardReader) Seek(rc *types.Record) {
 	r.rpos = rc.Dynamodb.SequenceNumber
+	r.rposType = types.ShardIteratorTypeAtSequenceNumber
 	r.eos = false
 	r.itr = nil
 }
@@ -111,6 +134,7 @@ func (r *ShardReader) Seek(rc *types.Record) {
 // Reset resets the internal state in order to read the shard from the beginning.
 func (r *ShardReader) Reset() {
 	r.rpos = nil
+	r.rposType = ""
 	r.eos = false
 	r.itr = nil
 }
@@ -140,7 +164,7 @@ func (r *ShardReader) buildShardIteratorRequest() *dynamodbstreams.GetShardItera
 	// will request an iterator that starts at rpos
 	return &dynamodbstreams.GetShardIteratorInput{
 		ShardId:           r.shard.ShardId,
-		ShardIteratorType: types.ShardIteratorTypeAtSequenceNumber,
+		ShardIteratorType: r.rposType,
 		StreamArn:         r.streamArn,
 		SequenceNumber:    r.rpos,
 	}

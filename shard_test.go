@@ -239,3 +239,181 @@ func TestShardReader(t *testing.T) {
 
 	gomock.InOrder(expects...)
 }
+
+func newTestShardReader(t *testing.T) (*MockDynamoDBStreamer, *ShardReader) {
+	t.Helper()
+
+	client := NewMockDynamoDBStreamer(gomock.NewController(t))
+	sr := NewShardReaderService(aws.String("test-arn"), client).NewReader(&types.Shard{
+		SequenceNumberRange: &types.SequenceNumberRange{StartingSequenceNumber: aws.String("0000")},
+		ShardId:             aws.String("shard-1"),
+	})
+
+	return client, sr
+}
+
+func TestShardReaderExpiredIterator(t *testing.T) {
+	t.Run("renews a stored iterator", func(t *testing.T) {
+		assert := assert.New(t)
+		require := require.New(t)
+
+		client, sr := newTestShardReader(t)
+
+		var expects []any
+
+		expects = append(expects, client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
+			ShardId:           aws.String("shard-1"),
+			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
+			StreamArn:         aws.String("test-arn"),
+		}).Return(&dynamodbstreams.GetShardIteratorOutput{
+			ShardIterator: aws.String("itr-1"),
+		}, nil))
+
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
+			ShardIterator: aws.String("itr-1"),
+		}).Return(&dynamodbstreams.GetRecordsOutput{
+			NextShardIterator: aws.String("itr-2"),
+			Records:           records1,
+		}, nil))
+
+		// the stored iterator went stale, e.g. the reader was idle for more than 15 minutes
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
+			ShardIterator: aws.String("itr-2"),
+		}).Return(nil, &types.ExpiredIteratorException{Message: aws.String("Iterator expired")}))
+
+		// should resume after the newest record already delivered, not from the oldest
+		expects = append(expects, client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
+			SequenceNumber:    aws.String("0001"),
+			ShardId:           aws.String("shard-1"),
+			ShardIteratorType: types.ShardIteratorTypeAfterSequenceNumber,
+			StreamArn:         aws.String("test-arn"),
+		}).Return(&dynamodbstreams.GetShardIteratorOutput{
+			ShardIterator: aws.String("itr-3"),
+		}, nil))
+
+		expects = append(expects, client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
+			ShardIterator: aws.String("itr-3"),
+		}).Return(&dynamodbstreams.GetRecordsOutput{
+			NextShardIterator: aws.String("itr-4"),
+			Records:           records2,
+		}, nil))
+
+		gomock.InOrder(expects...)
+
+		actual, err := sr.ReadRecords(context.Background())
+		require.NoError(err)
+		assert.ElementsMatch(records1, actual)
+
+		actual, err = sr.ReadRecords(context.Background())
+		require.NoError(err)
+		assert.ElementsMatch(records2, actual, "the records already delivered must not be replayed")
+	})
+
+	// a concurrent caller can store a new iterator between the failure and the retry, so
+	// the renewal must be bounded by the call itself rather than by r.itr
+	t.Run("renews at most once", func(t *testing.T) {
+		assert := assert.New(t)
+		require := require.New(t)
+
+		client, sr := newTestShardReader(t)
+
+		client.EXPECT().GetShardIterator(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetShardIteratorOutput{
+			ShardIterator: aws.String("itr-1"),
+		}, nil)
+
+		client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
+			ShardIterator: aws.String("itr-1"),
+		}).Return(&dynamodbstreams.GetRecordsOutput{
+			NextShardIterator: aws.String("itr-2"),
+			Records:           records1,
+		}, nil)
+
+		_, err := sr.ReadRecords(context.Background())
+		require.NoError(err)
+
+		client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
+			ShardIterator: aws.String("itr-2"),
+		}).Return(nil, &types.ExpiredIteratorException{Message: aws.String("Iterator expired")})
+
+		client.EXPECT().GetShardIterator(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(context.Context, *dynamodbstreams.GetShardIteratorInput, ...func(*dynamodbstreams.Options)) (*dynamodbstreams.GetShardIteratorOutput, error) {
+				sr.itr = aws.String("itr-stored-by-another-caller")
+
+				return &dynamodbstreams.GetShardIteratorOutput{ShardIterator: aws.String("itr-3")}, nil
+			},
+		)
+
+		client.EXPECT().GetRecords(gomock.Any(), &dynamodbstreams.GetRecordsInput{
+			ShardIterator: aws.String("itr-3"),
+		}).Return(nil, &types.ExpiredIteratorException{Message: aws.String("Iterator expired")})
+
+		_, err = sr.ReadRecords(context.Background())
+		assert.ErrorAs(err, new(*types.ExpiredIteratorException))
+	})
+
+	t.Run("gives up on a fresh iterator", func(t *testing.T) {
+		assert := assert.New(t)
+
+		client, sr := newTestShardReader(t)
+
+		client.EXPECT().GetShardIterator(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetShardIteratorOutput{
+			ShardIterator: aws.String("itr-1"),
+		}, nil).Times(2)
+
+		client.EXPECT().GetRecords(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetRecordsOutput{
+			NextShardIterator: aws.String("itr-2"),
+			Records:           records1,
+		}, nil)
+
+		_, err := sr.ReadRecords(context.Background())
+		assert.NoError(err)
+
+		// a freshly fetched iterator that is also expired is not transient, so the reader
+		// must surface the error rather than renewing forever
+		client.EXPECT().GetRecords(gomock.Any(), gomock.Any()).Return(nil, &types.ExpiredIteratorException{
+			Message: aws.String("Iterator expired"),
+		}).Times(2)
+
+		_, err = sr.ReadRecords(context.Background())
+		assert.ErrorAs(err, new(*types.ExpiredIteratorException))
+	})
+}
+
+func TestShardReaderReset(t *testing.T) {
+	assert := assert.New(t)
+	require := require.New(t)
+
+	client, sr := newTestShardReader(t)
+
+	client.EXPECT().GetShardIterator(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetShardIteratorOutput{
+		ShardIterator: aws.String("itr-1"),
+	}, nil)
+
+	client.EXPECT().GetRecords(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetRecordsOutput{
+		NextShardIterator: aws.String("itr-2"),
+		Records:           records1,
+	}, nil)
+
+	_, err := sr.ReadRecords(context.Background())
+	require.NoError(err)
+
+	sr.Reset()
+
+	// a delivered record must not leave a resume point behind that outlives Reset
+	client.EXPECT().GetShardIterator(gomock.Any(), &dynamodbstreams.GetShardIteratorInput{
+		ShardId:           aws.String("shard-1"),
+		ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
+		StreamArn:         aws.String("test-arn"),
+	}).Return(&dynamodbstreams.GetShardIteratorOutput{
+		ShardIterator: aws.String("itr-3"),
+	}, nil)
+
+	client.EXPECT().GetRecords(gomock.Any(), gomock.Any()).Return(&dynamodbstreams.GetRecordsOutput{
+		NextShardIterator: aws.String("itr-4"),
+		Records:           records1,
+	}, nil)
+
+	actual, err := sr.ReadRecords(context.Background())
+	require.NoError(err)
+	assert.ElementsMatch(records1, actual)
+}
