@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.0.4](https://github.com/nabeken/koro/compare/v2.0.3...v2.0.4) (2026-10-03)
+
+
+### Bug Fixes
+
+* **deps:** update aws-sdk-go-v2 monorepo ([#128](https://github.com/nabeken/koro/issues/128)) ([2a88498](https://github.com/nabeken/koro/commit/2a8849803537eb06a6ab93ea3238bda4a2ae7fb5))
+* **deps:** update aws-sdk-go-v2 monorepo ([#130](https://github.com/nabeken/koro/issues/130)) ([2a8814e](https://github.com/nabeken/koro/commit/2a8814e452f76bf7a477cdb8b51c1a962887c6db))
+* **deps:** update aws-sdk-go-v2 monorepo ([#132](https://github.com/nabeken/koro/issues/132)) ([ef53039](https://github.com/nabeken/koro/commit/ef5303995aa592c5dc972687359bb72eda76004a))
+* **deps:** update aws-sdk-go-v2 monorepo ([#133](https://github.com/nabeken/koro/issues/133)) ([1c4a8e9](https://github.com/nabeken/koro/commit/1c4a8e99b073359bbedde2072a356d7d9ec77d06))
+* **deps:** update aws-sdk-go-v2 monorepo ([#135](https://github.com/nabeken/koro/issues/135)) ([c0d704f](https://github.com/nabeken/koro/commit/c0d704fd469484ebe782537b3c7c0d34f1a0011a))
+* **deps:** update module github.com/aws/aws-sdk-go-v2/service/dynamodb to v1.70.0 ([#136](https://github.com/nabeken/koro/issues/136)) ([499e015](https://github.com/nabeken/koro/commit/499e015292fcc3c66065fb61634c67a466ec6d51))
+* **deps:** update rrainn/dynamodb-action action to v5 ([#131](https://github.com/nabeken/koro/issues/131)) ([fdb0bfc](https://github.com/nabeken/koro/commit/fdb0bfc181745620b7a6600f35f09de459b40108))
+* **deps:** update suzuki-shunsuke/github-action-renovate-config-validator action to v2.2.0 ([#134](https://github.com/nabeken/koro/issues/134)) ([c4e7ef3](https://github.com/nabeken/koro/commit/c4e7ef3032c2238674bd26a8d3e94e743ae75f1a))
+
 ## [2.0.3](https://github.com/nabeken/koro/compare/v2.0.2...v2.0.3) (2026-08-31)
 
 
