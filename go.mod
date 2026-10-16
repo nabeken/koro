@@ -9,7 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.33.9
 	github.com/aws/aws-sdk-go-v2/credentials v1.20.9
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.70.3
-	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.45.1
+	github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.46.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/mock v0.6.0
 )
