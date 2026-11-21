@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/nabeken/koro/compare/v2.0.4...v3.0.0) (2026-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* the module path is now github.com/nabeken/koro/v3 and the minimum Go version is 1.25.
+
+### Features
+
+* bump module to v3 and require Go 1.25 ([#154](https://github.com/nabeken/koro/issues/154)) ([f829d95](https://github.com/nabeken/koro/commit/f829d956cf11ae568a2e50de429a80836105b409))
+
 ## [2.0.4](https://github.com/nabeken/koro/compare/v2.0.3...v2.0.4) (2026-11-20)
 
 
