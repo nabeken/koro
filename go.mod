@@ -1,6 +1,6 @@
-module github.com/nabeken/koro/v2
+module github.com/nabeken/koro/v3
 
-go 1.24.0
+go 1.25.0
 
 toolchain go1.27.4
 
