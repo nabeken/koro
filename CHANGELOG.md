@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.0.0](https://github.com/nabeken/koro/compare/v2.0.4...v3.0.0) (2026-11-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* the module path is now github.com/nabeken/koro/v3 and the minimum Go version is 1.25.
+
+### Features
+
+* bump module to v3 and require Go 1.25 ([#154](https://github.com/nabeken/koro/issues/154)) ([f829d95](https://github.com/nabeken/koro/commit/f829d956cf11ae568a2e50de429a80836105b409))
+
+
+### Bug Fixes
+
+* **deps:** update aws-sdk-go-v2 monorepo ([#156](https://github.com/nabeken/koro/issues/156)) ([1c630a3](https://github.com/nabeken/koro/commit/1c630a3b820ba89473b896dfa62758960eb1f32a))
+* **deps:** update aws-sdk-go-v2 monorepo ([#157](https://github.com/nabeken/koro/issues/157)) ([3c0dfbb](https://github.com/nabeken/koro/commit/3c0dfbb81426a8d376f3833d64f7dc95206d9976))
+* **deps:** update module golang.org/x/crypto to v0.52.0 [security] ([#139](https://github.com/nabeken/koro/issues/139)) ([77afc70](https://github.com/nabeken/koro/commit/77afc705c75fe637b8a12c84bd85766dbbb089d8))
+* **deps:** update module golang.org/x/net to v0.55.0 [security] ([#140](https://github.com/nabeken/koro/issues/140)) ([cdea194](https://github.com/nabeken/koro/commit/cdea1949fb950a9b6ade999b9d46c7af4ee1edc3))
+* **deps:** update module golang.org/x/oauth2 to v0.27.0 [security] ([#141](https://github.com/nabeken/koro/issues/141)) ([00c8fd2](https://github.com/nabeken/koro/commit/00c8fd25ecaa51b99e7a4d1d217dc96151376512))
+
 ## [2.0.4](https://github.com/nabeken/koro/compare/v2.0.3...v2.0.4) (2026-11-20)
 
 
